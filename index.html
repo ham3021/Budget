@@ -292,11 +292,16 @@ textarea{resize:none;height:60px}
     <div class="modal-handle"></div>
     <div class="modal-title">지출 추가</div>
 
-    <div class="upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
+    <div class="upload-area" id="uploadArea">
       <div class="upload-icon">📷</div>
-      <p>영수증 또는 결제화면 캡처<br>사진을 탭해서 업로드</p>
+      <p>영수증 또는 결제화면 캡처</p>
+      <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
+        <button onclick="document.getElementById('imageCamera').click()" style="flex:1;padding:8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);font-size:13px;cursor:pointer">📷 카메라</button>
+        <button onclick="document.getElementById('imageAlbum').click()" style="flex:1;padding:8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);font-size:13px;cursor:pointer">🖼️ 앨범</button>
+      </div>
     </div>
-    <input type="file" id="imageInput" accept="image/*" capture="environment">
+    <input type="file" id="imageCamera" accept="image/*" capture="environment" style="display:none">
+    <input type="file" id="imageAlbum" accept="image/*" style="display:none">
     <img id="previewImg" class="preview-img" style="display:none">
     <div class="ai-loading" id="aiLoading" style="display:none">
       <div class="spinner"></div>
@@ -697,7 +702,9 @@ function openAddModal() {
   document.querySelectorAll('.cat-chip').forEach(el=>el.classList.remove('selected'));
   selectWho('me');
   document.getElementById('previewImg').style.display='none';
-  document.getElementById('uploadArea').style.display='flex';
+  document.getElementById('uploadArea').style.display='block';
+  document.getElementById('imageCamera').value='';
+  document.getElementById('imageAlbum').value='';
   document.getElementById('aiLoading').style.display='none';
   document.getElementById('addModal').classList.add('open');
 }
@@ -768,7 +775,7 @@ async function deleteExpense(id) {
   } catch(e) { showToast('삭제 실패'); }
 }
 
-document.getElementById('imageInput').addEventListener('change', async function(e) {
+async function handleImageChange(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
@@ -792,7 +799,9 @@ document.getElementById('imageInput').addEventListener('change', async function(
     document.getElementById('aiLoading').style.display = 'none';
   };
   reader.readAsDataURL(file);
-});
+}
+document.getElementById('imageCamera').addEventListener('change', handleImageChange);
+document.getElementById('imageAlbum').addEventListener('change', handleImageChange);
 
 async function analyzeImage(b64, mediaType) {
   const today = new Date().toISOString().slice(0,10);
