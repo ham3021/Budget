@@ -388,6 +388,28 @@ textarea{resize:none;height:60px}
   </div>
 </div>
 
+<!-- 멀티 결제내역 선택 모달 -->
+<div class="modal-overlay" id="multiModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">결제내역 선택</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:12px">AI가 분류했어요. 수정 후 저장하세요.</p>
+    <div style="margin-bottom:14px">
+      <div style="font-size:13px;font-weight:500;color:var(--text2);margin-bottom:6px">지출자</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div class="who-btn selected" id="multiWhoMe" onclick="selectMultiWho('me')"><span id="multiWhoMeLabel">나</span></div>
+        <div class="who-btn" id="multiWhoSpouse" onclick="selectMultiWho('spouse')"><span id="multiWhoSpouseLabel">배우자</span></div>
+      </div>
+    </div>
+    <div id="multiList" style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;margin-bottom:16px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-secondary" onclick="toggleAllMulti()" id="toggleAllBtn" style="width:auto;padding:12px 16px;flex-shrink:0">전체선택</button>
+      <button class="btn-primary" onclick="saveMultiExpenses()" id="multiSaveBtn">선택 저장</button>
+    </div>
+    <button class="btn-secondary" onclick="closeModal('multiModal')" style="margin-top:8px">취소</button>
+  </div>
+</div>
+
 <!-- 홈화면 설치 안내 모달 -->
 <div class="modal-overlay" id="installModal">
   <div class="modal">
@@ -787,23 +809,31 @@ async function handleImageChange(e) {
     if (!settings.apiKey) { showToast('설정에서 Claude API Key를 입력해주세요'); return; }
     document.getElementById('aiLoading').style.display = 'flex';
     try {
-      const result = await analyzeImage(b64.split(',')[1], file.type);
-      if (result) {
-        if (result.amount) document.getElementById('inputAmount').value = result.amount;
-        if (result.desc) document.getElementById('inputDesc').value = result.desc;
-        if (result.date) document.getElementById('inputDate').value = result.date;
-        if (result.category) selectCat(result.category);
+      const results = await analyzeImageMulti(b64.split(',')[1], file.type);
+      document.getElementById('aiLoading').style.display = 'none';
+      if (!results || !results.length) { showToast('결제내역을 찾지 못했어요'); return; }
+      if (results.length === 1) {
+        const r = results[0];
+        if (r.amount) document.getElementById('inputAmount').value = r.amount;
+        if (r.desc) document.getElementById('inputDesc').value = r.desc;
+        if (r.date) document.getElementById('inputDate').value = r.date;
+        if (r.category) selectCat(r.category);
         showToast('AI 분석 완료!');
+      } else {
+        closeModal('addModal');
+        openMultiModal(results);
       }
-    } catch(err) { showToast('AI 분석 실패: '+err.message); }
-    document.getElementById('aiLoading').style.display = 'none';
+    } catch(err) {
+      document.getElementById('aiLoading').style.display = 'none';
+      showToast('AI 분석 실패: '+err.message);
+    }
   };
   reader.readAsDataURL(file);
 }
 document.getElementById('imageCamera').addEventListener('change', handleImageChange);
 document.getElementById('imageAlbum').addEventListener('change', handleImageChange);
 
-async function analyzeImage(b64, mediaType) {
+async function analyzeImageMulti(b64, mediaType) {
   const today = new Date().toISOString().slice(0,10);
   const catList = CATEGORIES.map(c=>`${c.id}:${c.name}`).join(', ');
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -811,26 +841,135 @@ async function analyzeImage(b64, mediaType) {
     headers:{'Content-Type':'application/json','x-api-key':settings.apiKey,'anthropic-version':'2023-06-01'},
     body: JSON.stringify({
       model:'claude-opus-4-6',
-      max_tokens:500,
+      max_tokens:2000,
       messages:[{role:'user',content:[
         {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
-        {type:'text',text:`이 영수증 또는 결제화면 이미지에서 다음 정보를 추출해주세요. 오늘 날짜는 ${today}입니다.
-JSON 형식으로만 응답하세요 (마크다운 없이):
-{
-  "amount": 숫자(원화, 숫자만),
-  "desc": "업체명 또는 구매내용",
-  "date": "YYYY-MM-DD",
-  "category": "카테고리ID"
-}
-사용 가능한 카테고리 ID: ${catList}
-날짜가 불명확하면 오늘 날짜를 사용하세요.`}
+        {type:'text',text:`이 이미지에서 모든 지출 결제내역을 추출해주세요. 오늘 날짜는 ${today}입니다.
+규칙:
+- 취소/환불/입금(+) 건은 제외
+- 지출(-)건만 포함
+- 금액은 절대값(양수)으로
+
+JSON 배열 형식으로만 응답 (마크다운 없이):
+[
+  {"amount": 숫자, "desc": "업체명", "date": "YYYY-MM-DD", "category": "카테고리ID"},
+  ...
+]
+카테고리 ID 목록: ${catList}
+날짜 불명확하면 오늘 날짜 사용.`}
       ]}]
     })
   });
   const data = await resp.json();
   if (data.error) throw new Error(data.error.message);
   const text = data.content[0].text.trim();
-  return JSON.parse(text.replace(/```json|```/g,'').trim());
+  const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+let multiItems = [];
+let multiWho = 'me';
+
+function selectMultiWho(who) {
+  multiWho = who;
+  document.getElementById('multiWhoMe').classList.toggle('selected', who==='me');
+  document.getElementById('multiWhoSpouse').classList.toggle('selected', who==='spouse');
+}
+
+function openMultiModal(results) {
+  multiItems = results.map((r,i) => ({...r, checked: true, id: i}));
+  multiWho = currentUser;
+  document.getElementById('multiWhoMe').classList.toggle('selected', multiWho==='me');
+  document.getElementById('multiWhoSpouse').classList.toggle('selected', multiWho==='spouse');
+  document.getElementById('multiWhoMeLabel').textContent = settings.myName;
+  document.getElementById('multiWhoSpouseLabel').textContent = settings.spouseName;
+  renderMultiList();
+  document.getElementById('multiModal').classList.add('open');
+}
+
+function renderMultiList() {
+  const list = document.getElementById('multiList');
+  const catOptions = CATEGORIES.map(c=>`<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+  list.innerHTML = multiItems.map((item,i) => {
+    const cat = CATEGORIES.find(c=>c.id===item.category)||{emoji:'💰',name:'기타'};
+    return `<div style="background:${item.checked?'var(--surface)':'var(--surface3)'};border:1.5px solid ${item.checked?'var(--primary)':'var(--border)'};border-radius:12px;padding:14px;transition:all .15s">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <input type="checkbox" id="chk_${i}" ${item.checked?'checked':''} onchange="toggleMultiItem(${i})"
+          style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer;flex-shrink:0">
+        <span style="font-size:20px">${cat.emoji}</span>
+        <span style="font-size:14px;font-weight:500;color:var(--text);flex:1">${item.desc||'내용없음'}</span>
+        <span style="font-size:15px;font-weight:600;color:var(--danger)">-${fmt(item.amount)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:3px">날짜</div>
+          <input type="text" value="${item.date||''}" onchange="updateMultiItem(${i},'date',this.value)"
+            style="font-size:13px;padding:6px 8px;width:100%">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:3px">금액</div>
+          <input type="number" value="${item.amount||''}" onchange="updateMultiItem(${i},'amount',parseInt(this.value))"
+            style="font-size:13px;padding:6px 8px;width:100%">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:3px">내용</div>
+          <input type="text" value="${item.desc||''}" onchange="updateMultiItem(${i},'desc',this.value)"
+            style="font-size:13px;padding:6px 8px;width:100%">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:3px">카테고리</div>
+          <select onchange="updateMultiItem(${i},'category',this.value)"
+            style="font-size:13px;padding:6px 8px;width:100%">
+            ${CATEGORIES.map(c=>`<option value="${c.id}" ${c.id===item.category?'selected':''}>${c.emoji} ${c.name}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const checkedCount = multiItems.filter(x=>x.checked).length;
+  document.getElementById('multiSaveBtn').textContent = `${checkedCount}건 저장`;
+}
+
+function toggleMultiItem(i) {
+  multiItems[i].checked = !multiItems[i].checked;
+  renderMultiList();
+}
+
+function updateMultiItem(i, field, value) {
+  multiItems[i][field] = value;
+}
+
+function toggleAllMulti() {
+  const allChecked = multiItems.every(x=>x.checked);
+  multiItems.forEach(x=>x.checked=!allChecked);
+  document.getElementById('toggleAllBtn').textContent = allChecked ? '전체선택' : '전체해제';
+  renderMultiList();
+}
+
+async function saveMultiExpenses() {
+  const toSave = multiItems.filter(x=>x.checked);
+  if (!toSave.length) { showToast('선택된 항목이 없어요'); return; }
+  const btn = document.getElementById('multiSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+  try {
+    for (const item of toSave) {
+      const expense = {
+        amount: item.amount,
+        desc: item.desc,
+        date: item.date,
+        category: item.category,
+        who: multiWho,
+        createdAt: new Date().toISOString()
+      };
+      if (db) await db.collection('expenses').add(expense);
+      else expenses.push({...expense, id: Date.now().toString() + Math.random()});
+    }
+    if (!db) { saveLocal(); renderAll(); }
+    closeModal('multiModal');
+    showToast(`${toSave.length}건 저장 완료!`);
+  } catch(err) { showToast('저장 실패: '+err.message); }
+  btn.disabled = false;
 }
 
 function saveFirebaseConfig() {
