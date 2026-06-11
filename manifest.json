@@ -3,6 +3,7 @@
   "short_name": "가계부",
   "description": "부부 공유 AI 가계부",
   "start_url": "/Budget/",
+  "scope": "/Budget/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4F46E5",
