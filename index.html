@@ -7,9 +7,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="우리가계부">
 <meta name="theme-color" content="#ffffff">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json?v=20260612">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>우리가계부</title>
+<meta name="app-version" content="20260612">
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
@@ -1090,6 +1091,40 @@ function showToast(msg) {
 }
 
 init();
+
+// Service Worker 등록
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js?v=20260612')
+    .then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated') {
+            showToast('앱이 업데이트됐어요! 새로고침합니다...');
+            setTimeout(() => window.location.reload(true), 1500);
+          }
+        });
+      });
+    });
+}
+
+// 자동 업데이트 감지
+const APP_VERSION = '20260612';
+const savedVersion = localStorage.getItem('appVersion');
+if (savedVersion && savedVersion !== APP_VERSION) {
+  localStorage.setItem('appVersion', APP_VERSION);
+  showToast('앱이 업데이트됐어요! 새로고침합니다...');
+  setTimeout(() => {
+    if ('caches' in window) {
+      caches.keys().then(keys => {
+        keys.forEach(key => caches.delete(key));
+      });
+    }
+    window.location.reload(true);
+  }, 1500);
+} else {
+  localStorage.setItem('appVersion', APP_VERSION);
+}
 </script>
 </body>
 </html>
