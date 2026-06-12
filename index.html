@@ -7,10 +7,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="우리가계부">
 <meta name="theme-color" content="#ffffff">
-<link rel="manifest" href="manifest.json?v=20260612d">
+<link rel="manifest" href="manifest.json?v=20260612f">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>우리가계부</title>
-<meta name="app-version" content="20260612d">
+<meta name="app-version" content="20260612f">
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
@@ -26,7 +26,7 @@
   --success:#10B981;--success-light:#ECFDF5;
   --radius:12px;--radius-sm:8px;--shadow:0 1px 3px rgba(0,0,0,.08);
 }
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--surface3);color:var(--text);min-height:100vh;max-width:430px;margin:0 auto;position:relative}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--surface3);color:var(--text);min-height:100vh;width:100%;margin:0 auto;position:relative}
 .app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 20px 12px;position:sticky;top:0;z-index:100}
 .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .app-title{font-size:18px;font-weight:600;color:var(--text)}
@@ -67,14 +67,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fab{position:fixed;bottom:80px;right:20px;width:56px;height:56px;border-radius:28px;background:var(--primary);color:#fff;border:none;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(79,70,229,.4);display:flex;align-items:center;justify-content:center;z-index:90;transition:transform .1s}
 .fab:active{transform:scale(.95)}
 
-.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;width:100%;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100}
 .nav-btn{flex:1;padding:10px 0 14px;border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--text3);transition:color .15s}
 .nav-btn.active{color:var(--primary)}
 .nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
 .modal-overlay.open{display:flex}
-.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:430px;max-height:92vh;overflow-y:auto;padding:24px 20px 40px}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:24px 20px 40px}
 .modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
 .modal-title{font-size:17px;font-weight:600;margin-bottom:20px}
 
@@ -249,6 +249,12 @@ textarea{resize:none;height:60px}
     </div>
   </div>
   <div class="settings-section">
+    <div class="settings-row" onclick="showCatRulesModal()">
+      <span class="settings-label">🧠 AI 학습 규칙</span>
+      <span class="settings-value" id="catRulesCount">0개</span>
+    </div>
+  </div>
+  <div class="settings-section">
     <div class="settings-row">
       <span class="settings-label">앱 버전</span>
       <span class="settings-value">1.0.0</span>
@@ -406,6 +412,18 @@ textarea{resize:none;height:60px}
       <button class="btn-primary" onclick="saveMultiExpenses()" id="multiSaveBtn">선택 저장</button>
     </div>
     <button class="btn-secondary" onclick="closeModal('multiModal')" style="margin-top:8px">취소</button>
+  </div>
+</div>
+
+<!-- 학습 규칙 모달 -->
+<div class="modal-overlay" id="catRulesModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🧠 AI 학습 규칙</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6">카테고리를 수정할 때마다 자동으로 저장돼요.<br>다음 분석부터 이 규칙이 우선 적용됩니다.</p>
+    <div id="catRulesList" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto;margin-bottom:16px"></div>
+    <button class="btn-secondary" onclick="clearAllCatRules()" style="color:var(--danger);border-color:var(--danger)">전체 규칙 삭제</button>
+    <button class="btn-secondary" onclick="closeModal('catRulesModal')" style="margin-top:8px">닫기</button>
   </div>
 </div>
 
@@ -701,17 +719,19 @@ function getAllExpenses() {
 function renderCatGrid() {
   const grid = document.getElementById('catGrid');
   grid.innerHTML = CATEGORIES.map(c =>
-    `<div class="cat-chip" id="cat_${c.id}" onclick="selectCat('${c.id}')">
+    `<div class="cat-chip" id="cat_${c.id}" onclick="selectCat('${c.id}', document.getElementById('inputDesc').value.trim())">
       <span class="cat-emoji">${c.emoji}</span>${c.name}
     </div>`
   ).join('');
 }
 
-function selectCat(id) {
+function selectCat(id, learnDesc) {
   selectedCat = id;
   document.querySelectorAll('.cat-chip').forEach(el=>el.classList.remove('selected'));
   const el = document.getElementById('cat_'+id);
   if(el) el.classList.add('selected');
+  // 단건 입력에서 직접 카테고리 변경 시 학습
+  if (learnDesc) saveCatRule(learnDesc, id);
 }
 
 function selectWho(who) {
@@ -902,7 +922,7 @@ async function analyzeImageMulti(b64, mediaType) {
 4. 날짜가 없으면 오늘 날짜(${today}) 사용
 5. 카테고리는 아래 목록에서 가장 적합한 것 선택
 
-카테고리 목록: ${catList}
+카테고리 목록: ${catList}${getCatRulesPrompt()}
 
 반드시 아래 JSON 배열 형식으로만 응답하세요. 다른 텍스트 없이 JSON만:
 [{"amount":숫자,"desc":"업체명","date":"YYYY-MM-DD","category":"카테고리ID"}]
@@ -973,8 +993,80 @@ function selectMultiWho(who) {
   document.getElementById('multiWhoSpouse').classList.toggle('selected', who==='spouse');
 }
 
+// ── 카테고리 학습 기능 ──────────────────────────
+// 규칙 형식: { "쿠팡": "household", "스타벅스": "snacks", ... }
+function getCatRules() {
+  return JSON.parse(localStorage.getItem('catRules') || '{}');
+}
+
+function saveCatRule(desc, categoryId) {
+  if (!desc || !categoryId) return;
+  // 업체명 핵심 키워드 추출 (앞 10자)
+  const key = desc.replace(/\s/g,'').slice(0, 10).toLowerCase();
+  if (!key) return;
+  const rules = getCatRules();
+  rules[key] = categoryId;
+  localStorage.setItem('catRules', JSON.stringify(rules));
+}
+
+function getCatRulesPrompt() {
+  const rules = getCatRules();
+  const entries = Object.entries(rules);
+  if (!entries.length) return '';
+  const lines = entries.map(([k, v]) => {
+    const cat = CATEGORIES.find(c=>c.id===v);
+    return `"${k}" → ${cat ? cat.name : v}`;
+  }).join(', ');
+  return `\n\n사용자 지정 분류 규칙 (반드시 우선 적용):\n${lines}`;
+}
+// ────────────────────────────────────────────────
+function isSimilarDesc(a, b) {
+  if (!a || !b) return false;
+  const normalize = s => s.replace(/\s/g,'').toLowerCase();
+  const na = normalize(a), nb = normalize(b);
+  return na === nb || na.includes(nb) || nb.includes(na);
+}
+
+// 추출된 항목들 중 중복 감지
+function detectDuplicatesInList(items) {
+  return items.map((item, i) => {
+    const isDup = items.some((other, j) => {
+      if (i <= j) return false; // 앞선 항목과만 비교
+      return item.amount === other.amount &&
+             item.date === other.date &&
+             isSimilarDesc(item.desc, other.desc);
+    });
+    return {...item, isDuplicate: isDup};
+  });
+}
+
+// Firebase에 이미 저장된 항목과 중복 체크
+async function checkDuplicatesWithDB(items) {
+  if (!db) return items;
+  try {
+    const dates = [...new Set(items.map(i=>i.date).filter(Boolean))];
+    if (!dates.length) return items;
+    const snap = await db.collection('expenses')
+      .where('date', 'in', dates.slice(0,10))
+      .get();
+    const existing = snap.docs.map(d => d.data());
+    return items.map(item => {
+      const alreadySaved = existing.some(e =>
+        e.amount === item.amount &&
+        e.date === item.date &&
+        isSimilarDesc(e.desc, item.desc)
+      );
+      return {...item, alreadySaved};
+    });
+  } catch(e) { return items; }
+}
+
 function openMultiModal(results) {
-  multiItems = results.map((r,i) => ({...r, checked: true, id: i}));
+  // 1단계: 리스트 내 중복 감지
+  let items = detectDuplicatesInList(results);
+  // 중복은 기본 체크 해제
+  items = items.map(item => ({...item, checked: !item.isDuplicate, id: Math.random()}));
+  multiItems = items;
   multiWho = currentUser;
   document.getElementById('multiWhoMe').classList.toggle('selected', multiWho==='me');
   document.getElementById('multiWhoSpouse').classList.toggle('selected', multiWho==='spouse');
@@ -982,19 +1074,42 @@ function openMultiModal(results) {
   document.getElementById('multiWhoSpouseLabel').textContent = settings.spouseName;
   renderMultiList();
   document.getElementById('multiModal').classList.add('open');
+
+  // 2단계: DB 중복도 비동기로 체크
+  checkDuplicatesWithDB(multiItems).then(checked => {
+    multiItems = checked.map(item => ({
+      ...item,
+      checked: !item.isDuplicate && !item.alreadySaved
+    }));
+    renderMultiList();
+  });
 }
 
 function renderMultiList() {
   const list = document.getElementById('multiList');
-  const catOptions = CATEGORIES.map(c=>`<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+  const dupCount = multiItems.filter(x=>x.isDuplicate||x.alreadySaved).length;
+  if (dupCount > 0) {
+    list.previousElementSibling && list.previousElementSibling.id === 'dupNotice'
+      ? null
+      : list.insertAdjacentHTML('beforebegin',
+          `<div id="dupNotice" style="background:#FFF7ED;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400E;margin-bottom:10px">
+            ⚠️ 중복으로 감지된 ${dupCount}건은 체크 해제됐어요. 직접 확인 후 필요하면 체크하세요.
+          </div>`);
+  }
   list.innerHTML = multiItems.map((item,i) => {
     const cat = CATEGORIES.find(c=>c.id===item.category)||{emoji:'💰',name:'기타'};
-    return `<div style="background:${item.checked?'var(--surface)':'var(--surface3)'};border:1.5px solid ${item.checked?'var(--primary)':'var(--border)'};border-radius:12px;padding:14px;transition:all .15s">
+    const isDup = item.isDuplicate || item.alreadySaved;
+    const dupLabel = item.alreadySaved
+      ? '<span style="font-size:11px;background:#FEF2F2;color:#EF4444;padding:2px 6px;border-radius:6px;margin-left:4px">이미저장됨</span>'
+      : item.isDuplicate
+      ? '<span style="font-size:11px;background:#FFF7ED;color:#F59E0B;padding:2px 6px;border-radius:6px;margin-left:4px">중복</span>'
+      : '';
+    return `<div style="background:${item.checked?'var(--surface)':'var(--surface3)'};border:1.5px solid ${item.checked?'var(--primary)':'var(--border)'};border-radius:12px;padding:14px;transition:all .15s;${isDup&&!item.checked?'opacity:.6':''}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <input type="checkbox" id="chk_${i}" ${item.checked?'checked':''} onchange="toggleMultiItem(${i})"
           style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer;flex-shrink:0">
         <span style="font-size:20px">${cat.emoji}</span>
-        <span style="font-size:14px;font-weight:500;color:var(--text);flex:1">${item.desc||'내용없음'}</span>
+        <span style="font-size:14px;font-weight:500;color:var(--text);flex:1">${item.desc||'내용없음'}${dupLabel}</span>
         <span style="font-size:15px;font-weight:600;color:var(--danger)">-${fmt(item.amount)}</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -1033,7 +1148,12 @@ function toggleMultiItem(i) {
 }
 
 function updateMultiItem(i, field, value) {
+  const prev = multiItems[i][field];
   multiItems[i][field] = value;
+  // 카테고리를 수정한 경우 학습 규칙 저장
+  if (field === 'category' && value !== prev && multiItems[i].desc) {
+    saveCatRule(multiItems[i].desc, value);
+  }
 }
 
 function toggleAllMulti() {
@@ -1119,7 +1239,47 @@ function saveName() {
   updateSettingsDisplay();
   closeModal('nameModal');
 }
-function showInstallGuide() { document.getElementById('installModal').classList.add('open'); }
+function showCatRulesModal() {
+  const rules = getCatRules();
+  const entries = Object.entries(rules);
+  const list = document.getElementById('catRulesList');
+  if (!entries.length) {
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:14px">아직 저장된 규칙이 없어요.<br>카테고리를 수정하면 자동으로 학습돼요.</div>';
+  } else {
+    list.innerHTML = entries.map(([key, catId]) => {
+      const cat = CATEGORIES.find(c=>c.id===catId)||{emoji:'💰',name:catId};
+      return `<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+        <span style="font-size:13px;color:var(--text);flex:1">"${key}"</span>
+        <span style="font-size:13px">→</span>
+        <span style="font-size:13px;color:var(--primary);font-weight:500">${cat.emoji} ${cat.name}</span>
+        <button onclick="deleteCatRule('${key}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0 4px">×</button>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('catRulesModal').classList.add('open');
+}
+
+function deleteCatRule(key) {
+  const rules = getCatRules();
+  delete rules[key];
+  localStorage.setItem('catRules', JSON.stringify(rules));
+  showCatRulesModal();
+  updateCatRulesCount();
+}
+
+function clearAllCatRules() {
+  if (!confirm('모든 학습 규칙을 삭제할까요?')) return;
+  localStorage.removeItem('catRules');
+  showCatRulesModal();
+  updateCatRulesCount();
+  showToast('학습 규칙이 초기화됐어요');
+}
+
+function updateCatRulesCount() {
+  const count = Object.keys(getCatRules()).length;
+  const el = document.getElementById('catRulesCount');
+  if (el) el.textContent = count > 0 ? `${count}개` : '없음';
+}
 function updateSettingsDisplay() {
   document.getElementById('myNameDisplay').textContent = settings.myName;
   document.getElementById('spouseNameDisplay').textContent = settings.spouseName;
@@ -1127,6 +1287,7 @@ function updateSettingsDisplay() {
   document.getElementById('whoMeLabel').textContent = settings.myName;
   document.getElementById('whoSpouseLabel').textContent = settings.spouseName;
   document.getElementById('userBadge').textContent = currentUser==='me' ? settings.myName : settings.spouseName;
+  updateCatRulesCount();
 }
 function toggleUser() {
   currentUser = currentUser==='me' ? 'spouse' : 'me';
@@ -1205,7 +1366,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // 자동 업데이트 감지
-const APP_VERSION = '20260612d';
+const APP_VERSION = '20260612f';
 const savedVersion = localStorage.getItem('appVersion');
 if (savedVersion && savedVersion !== APP_VERSION) {
   localStorage.setItem('appVersion', APP_VERSION);

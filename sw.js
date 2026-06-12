@@ -1,4 +1,4 @@
-const VERSION = '20260612b';
+const VERSION = '20260612f';
 const CACHE = 'budget-' + VERSION;
 
 self.addEventListener('install', e => {
