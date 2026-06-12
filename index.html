@@ -7,10 +7,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="우리가계부">
 <meta name="theme-color" content="#ffffff">
-<link rel="manifest" href="manifest.json?v=20260612b">
+<link rel="manifest" href="manifest.json?v=20260612d">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>우리가계부</title>
-<meta name="app-version" content="20260612b">
+<meta name="app-version" content="20260612d">
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
@@ -231,11 +231,7 @@ textarea{resize:none;height:60px}
 
 <!-- 설정 탭 -->
 <div class="page" id="page-settings">
-  <div class="firebase-setup" id="firebaseSetupGuide">
-    <h3>🔥 Firebase 연동 설정</h3>
-    <p>부부 실시간 공유를 위해 Firebase 설정이 필요해요. 아래 설정값을 입력해주세요.</p>
-    <button class="btn-primary" onclick="showFirebaseModal()" style="margin-top:4px">Firebase 설정하기</button>
-  </div>
+  <div class="firebase-setup" id="firebaseSetupGuide" style="display:none"></div>
   <div class="settings-section">
     <div class="settings-row" onclick="showNameModal()">
       <span class="settings-label">내 이름</span>
@@ -469,11 +465,20 @@ let trendChartInst = null;
 let catTrendChartInst = null;
 let unsubscribe = null;
 
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyBSm3o6u4lxmG9l2fCcNqn-BX8Ljiz2a_g',
+  authDomain: 'budget-748b6.firebaseapp.com',
+  projectId: 'budget-748b6',
+  storageBucket: 'budget-748b6.firebasestorage.app',
+  messagingSenderId: '10951411111',
+  appId: '1:10951411111:web:3b0ae978c52b45c7f9a282'
+};
+
 const settings = {
   myName: localStorage.getItem('myName') || '나',
   spouseName: localStorage.getItem('spouseName') || '배우자',
   apiKey: localStorage.getItem('claudeApiKey') || '',
-  firebase: JSON.parse(localStorage.getItem('firebaseConfig') || 'null')
+  firebase: FIREBASE_CONFIG
 };
 
 function init() {
@@ -487,12 +492,10 @@ function init() {
 }
 
 function initFirebase() {
-  if (!settings.firebase) return;
   try {
-    if (!firebase.apps.length) firebase.initializeApp(settings.firebase);
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
     storage = firebase.storage();
-    document.getElementById('firebaseSetupGuide').style.display = 'none';
     loadExpenses();
   } catch(e) { showToast('Firebase 연결 실패: ' + e.message); }
 }
@@ -880,7 +883,8 @@ async function analyzeImageMulti(b64, mediaType) {
       headers:{
         'Content-Type':'application/json',
         'x-api-key':settings.apiKey,
-        'anthropic-version':'2023-06-01'
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
       },
       body: JSON.stringify({
         model:'claude-opus-4-6',
@@ -1201,7 +1205,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // 자동 업데이트 감지
-const APP_VERSION = '20260612b';
+const APP_VERSION = '20260612d';
 const savedVersion = localStorage.getItem('appVersion');
 if (savedVersion && savedVersion !== APP_VERSION) {
   localStorage.setItem('appVersion', APP_VERSION);
